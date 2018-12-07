@@ -1,0 +1,141 @@
+#4-01	拉格朗日插值
+# -*- coding: utf-8 -*-
+import pandas as pd
+from scipy.interpolate import lagrange
+
+inputfile="catering_sale.xls"
+outputfile="sales.xls"
+
+data =pd.read_excel(inputfile)
+data[u'销量'][(data[u'销量']<400) |(data[u'销量']>5000)] = None #过滤异常值，将其变为空值
+
+#s为列向量，n为被插值的位值，k为取前后的数据个数，默认为5
+def ployinterp_column(s, n, k=5):
+	y = s[list((n-k,n)) + list(range(n+1,n+1+k))]
+	y = y[y.notnull()]
+	return lagrange(y.index,list(y))(n) 
+
+#逐个元素判断是否需要插值
+for i in data.columns:
+	for j in range(len(data)):
+		if (data[i].isnull())[j]:
+			data[i][j] = ployinterp_column(data[i], j)
+
+data.to_excel(outputfile)
+
+
+
+#4-02	数据规范化代码
+# -*- coding: utf-8 -*-
+import pandas as pd
+import numpy as np
+datafile = "normalization_data.xls"
+data = pd.read_excel(datafile, header= None)
+(data - data.min())/(data.max() - data.min())
+(data - data.mean())/data.std()
+data/10**np.ceil(np.log10(data.abs().max()))
+
+
+
+#4-03	数据离散化
+# -*- coding: utf-8 -*-
+import pandas as pd
+
+datafile = 'discretization_data.xls' #参数初始化
+data = pd.read_excel(datafile) #读取数据
+data = data[u'肝气郁结证型系数'].copy()
+k = 4
+
+d1 = pd.cut(data, k, labels = range(k)) #等宽离散化，各个类比依次命名为0,1,2,3
+
+#等频率离散化
+w = [1.0*i/k for i in range(k+1)]
+w = data.describe(percentiles = w)[4:4+k+1] #使用describe函数自动计算分位数
+w[0] = w[0]*(1-1e-10)
+d2 = pd.cut(data, w, labels = range(k))
+
+from sklearn.cluster import KMeans #引入KMeans
+kmodel = KMeans(n_clusters = k, n_jobs = 4) #建立模型，n_jobs是并行数，一般等于CPU数较好
+kmodel.fit(data.values.reshape((len(data), 1))) #训练模型
+c = pd.DataFrame(kmodel.cluster_centers_).sort_values(0) #输出聚类中心，并且排序（默认是随机序的）
+w = pd.rolling_mean(c, 2).iloc[1:] #相邻两项求中点，作为边界点
+w = [0] + list(w[0]) + [data.max()] #把首末边界点加上
+d3 = pd.cut(data, w, labels = range(k))
+
+def cluster_plot(d, k): #自定义作图函数来显示聚类结果
+  import matplotlib.pyplot as plt
+  plt.rcParams['font.sans-serif'] = ['SimHei'] #用来正常显示中文标签
+  plt.rcParams['axes.unicode_minus'] = False #用来正常显示负号
+  
+  plt.figure(figsize = (8, 3))
+  for j in range(0, k):
+    plt.plot(data[d==j], [j for i in d[d==j]], 'o')
+  
+  plt.ylim(-0.5, k-0.5)
+  return plt
+
+cluster_plot(d1, k).show()
+cluster_plot(d2, k).show()
+cluster_plot(d3, k).show()
+
+
+
+#4-04 属性构造
+# -*- coding: utf-8 -*-
+import pandas as pd
+inputfile = "electricity_data.xls"
+outputfile = "electricity_data.xls"
+
+data=pd.read_excel(inputfile)
+data[u'线损率']=(data[u'供入电量']-data[u'供出电量'])/data[u'供入电量']
+
+data.to_excel(outputfile, index=False)
+
+
+
+#4-05 特征提取代码
+# -*- coding: utf-8 -*-
+inputfile='leleccum.mat'
+
+from scipy.io import loadmat
+mat = loadmat(inputfile)
+signal = mat['leleccum'][0]
+
+import pywt
+coeffs = pywt.wavedec(signal, 'bior3.7', level = 5)
+
+
+
+#4-06 主成分分析降维代码
+# -*- coding: utf-8 -*-
+import pandas as pd
+
+inputfile = 'principal_component.xls'
+outputfile = 'dimension_reducted.xls'
+
+data = pd.read_excel(inputfile, header = None)
+from sklearn.decomposition import PCA
+
+pca=PCA()
+pca.fit(data)
+pca.components_ #返回模型的各个特征向量
+pca.explained_variance_ratio_ #返回各个成分各自的方差百分比
+
+pca=PCA(3)
+pca.fit(data)
+low_d = pca.transform(data)
+pd.DataFrame(low_d).to_excel(outputfile)
+pca.inverse_transform(low_d)
+
+
+
+
+
+
+
+
+
+
+
+
+
